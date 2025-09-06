@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Garbage Overflow Detection System: A Custom Dataset Analysis</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Style the file upload form */
+    form {
+      margin-top: 50px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .button {
+      display: inline-block;
+      background-color: #79dd2d;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .button1 {
+      display: inline-block;
+      background-color: #f65c5c;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .button:hover {
+      background-color: #3e8e41;
+    }
+
+    /* Style the video */
+    .video-container {
+      margin-top: -250px;
+      display: flex;
+      justify-content: right;
+    }
+    .video {
+      width: 700px;
+      height: 500px;
+      max-width: 100%;
+      max-height: 100%;
+      border: 2px solid rgb(0, 0, 0);
+    }
+
+    /* Style the location info */
+    .location-section {
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      margin: 10px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+    }
+    
+    .location-section h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    
+    .location-info {
+      margin: 5px 0;
+      color: #555;
+    }
+    
+    .refresh-btn {
+      background-color: #007bff;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    
+    .refresh-btn:hover {
+      background-color: #0056b3;
+    }
+    
+    .logs-section {
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      margin: 10px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background-color: rgb(140, 82, 255);
+
+      background-image: url("{{ url_for('static', filename='123-01.png') }}");
+      background-repeat: no-repeat;
+      background-size: cover;
+background-position: 0% 0%;
+    }
+    
+  </style>
+
+  <h1 style="text-align: center;"><i>Garbage Overflow Detection System</i></h1>
+
+  <form method="POST" enctype="multipart/form-data">
+    <label for="file-upload" class="button">Select a file</label>
+    <input id="file-upload" type="file" name="file" onchange="document.getElementById('selected-file-name').innerHTML = this.files[0].name;">
+    <div id="selected-file-name"></div>
+    <button type="submit" class="button">Upload</button>
+
+  </form>
+
+  <!-- Add a button to capture video from the camera -->
+  <form method="POST">
+    <input type="hidden" name="camera" value="true">
+    <button type="submit" class="button">Capture from Camera</button>
+    <input type="hidden" name="stop" value="true">
+  </form>
+  
+  <!-- Add a button to capture video from ngrok mobile CCTV -->
+  <form method="POST">
+    <input type="hidden" name="ngrok" value="true">
+    <button type="submit" class="button">Mobile Phone CCTV (Ngrok)</button>
+  </form>
+  
+  <form action="/stop" method="POST">
+    <button type="submit" class="button1" >Stop</button>
+  </form>
+
+  <!-- Location Information Section -->
+  <div class="location-section">
+    <h3>Current Location</h3>
+    <div id="location-display" class="location-info">Loading location...</div>
+    <button class="refresh-btn" onclick="loadLocation()">Refresh IP Location</button>
+    <button class="refresh-btn" onclick="getMobileLocation()">Get Mobile GPS Location</button>
+    <button class="refresh-btn" onclick="getNetworkLocation()">Network Location</button>
+  </div>
+
+  <!-- Detection Logs Section -->
+  <div class="logs-section">
+    <h3>Recent Detections</h3>
+    <button class="refresh-btn" onclick="loadLogs()">Load Detection Logs</button>
+    <div id="logs-display"></div>
+  </div>
+
+  {% if file_path %}
+  <div class="video-container">
+    <img src="/video_feed?file={{ file_path }}" class="video">
+  </div>
+  
+  {% endif %}
+
+
+  <script>
+    document.getElementById("stop-button").addEventListener("click", function() {
+      var video = document.getElementsByClassName("video")[0];
+      video.pause();
+    });
+
+    // Location and detection log functions
+    function loadLocation() {
+      fetch('/current_location')
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            document.getElementById('location-display').innerHTML = 
+              `<p style="color: red;">Error: ${data.error}</p>`;
+          } else {
+            document.getElementById('location-display').innerHTML = 
+              `<p><strong>IP:</strong> ${data.ip}</p>
+               <p><strong>Location:</strong> ${data.city}, ${data.region}, ${data.country}</p>
+               <p><strong>Coordinates:</strong> ${data.latitude}, ${data.longitude}</p>
+               <p><strong>Last Updated:</strong> ${new Date(data.timestamp).toLocaleString()}</p>`;
+          }
+        })
+        .catch(error => {
+          document.getElementById('location-display').innerHTML = 
+            '<p style="color: red;">Error loading location</p>';
+          console.error('Error:', error);
+        });
+    }
+
+    // Get mobile GPS location using HTML5 Geolocation API
+    function getMobileLocation() {
+      if (navigator.geolocation) {
+        document.getElementById('location-display').innerHTML = 
+          '<p style="color: blue;">🔍 Getting GPS location...</p>';
+        
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            // Send GPS coordinates to server
+            fetch('/save_gps_location', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                timestamp: new Date().toISOString()
+              })
+            })
+            .then(response => response.json())
+            .then(data => {
+              document.getElementById('location-display').innerHTML = 
+                `<p><strong>📱 Mobile GPS Location:</strong></p>
+                 <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                 <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
+                 <p><strong>Address:</strong> ${data.address || 'Resolving...'}</p>
+                 <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>`;
+            })
+            .catch(error => {
+              document.getElementById('location-display').innerHTML = 
+                `<p><strong>📱 Mobile GPS Location:</strong></p>
+                 <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                 <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
+                 <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>`;
+            });
+          },
+          function(error) {
+            let errorMsg = '';
+            switch(error.code) {
+              case error.PERMISSION_DENIED:
+                errorMsg = "Location access denied by user";
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMsg = "Location information unavailable";
+                break;
+              case error.TIMEOUT:
+                errorMsg = "Location request timed out";
+                break;
+              default:
+                errorMsg = "Unknown error occurred";
+                break;
+            }
+            document.getElementById('location-display').innerHTML = 
+              `<p style="color: red;">❌ GPS Error: ${errorMsg}</p>
+               <p>Please enable location services and try again.</p>`;
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+          }
+        );
+      } else {
+        document.getElementById('location-display').innerHTML = 
+          '<p style="color: red;">❌ Geolocation is not supported by this browser</p>';
+      }
+    }
+
+    // Get network-based location (less accurate but faster)
+    function getNetworkLocation() {
+      if (navigator.geolocation) {
+        document.getElementById('location-display').innerHTML = 
+          '<p style="color: blue;">🔍 Getting network location...</p>';
+        
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            // Send coordinates to server
+            fetch('/save_gps_location', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                timestamp: new Date().toISOString()
+              })
+            })
+            .then(response => response.json())
+            .then(data => {
+              document.getElementById('location-display').innerHTML = 
+                `<p><strong>🌐 Network Location:</strong></p>
+                 <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                 <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
+                 <p><strong>Address:</strong> ${data.address || 'Resolving...'}</p>
+                 <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>`;
+            });
+          },
+          function(error) {
+            // Fallback to IP location if network location fails
+            loadLocation();
+          },
+          {
+            enableHighAccuracy: false,  // Use network location
+            timeout: 5000,
+            maximumAge: 300000  // 5 minutes cache
+          }
+        );
+      } else {
+        loadLocation();
+      }
+    }
+
+    function loadLogs() {
+      fetch('/location_logs')
+        .then(response => response.json())
+        .then(data => {
+          let html = '<ul style="list-style-type: none; padding: 0;">';
+          if (data.length === 0) {
+            html += '<li>No detections logged yet</li>';
+          } else {
+            data.slice(-10).forEach(log => {
+              const timestamp = new Date(log.timestamp).toLocaleString();
+              const avgConfidence = log.confidence_scores.length > 0 ? 
+                (log.confidence_scores.reduce((a, b) => a + b, 0) / log.confidence_scores.length * 100).toFixed(1) : 'N/A';
+              
+              const locationSource = log.location.source || 'IP';
+              const locationIcon = locationSource === 'GPS' ? '📱' : '🌐';
+              const locationText = locationSource === 'GPS' ? 
+                `GPS (${log.location.latitude?.toFixed(4)}, ${log.location.longitude?.toFixed(4)})` :
+                `${log.location.city}, ${log.location.country}`;
+              
+              html += `<li style="margin-bottom: 10px; padding: 8px; background-color: #f8f9fa; border-radius: 5px;">
+                <strong>${timestamp}</strong><br>
+                ${locationIcon} ${locationText}<br>
+                🗑️ ${log.detection_count} items detected (${avgConfidence}% confidence)
+              </li>`;
+            });
+          }
+          html += '</ul>';
+          document.getElementById('logs-display').innerHTML = html;
+        })
+        .catch(error => {
+          document.getElementById('logs-display').innerHTML = 
+            '<p style="color: red;">Error loading logs</p>';
+          console.error('Error:', error);
+        });
+    }
+
+    // Load location on page load
+    window.onload = function() {
+      // Try GPS location first, fallback to IP location
+      if (navigator.geolocation) {
+        getMobileLocation();
+      } else {
+        loadLocation();
+      }
+      
+      // Auto-refresh logs every 30 seconds when video is playing
+      setInterval(function() {
+        if (document.getElementsByClassName("video").length > 0) {
+          loadLogs();
+        }
+      }, 30000);
+    };
+  </script>
+  
+
+</body>
+</html>
