@@ -13,6 +13,20 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 
+# ============================================================================
+# FIREBASE DASHBOARD CONFIGURATION
+# ============================================================================
+
+# Your dashboard URL (update when deployed)
+DASHBOARD_URL = "http://localhost:3000"  # Local development
+# DASHBOARD_URL = "https://your-dashboard.vercel.app"  # Production
+
+# API endpoint
+UPLOAD_ENDPOINT = f"{DASHBOARD_URL}/api/model/upload"
+
+# Optional: Add API key for production security
+API_KEY = None  # Set to your API key if you add authentication
+
 # Load the YOLOv8 model (using the trained weights)
 model = YOLO('datasets/garbage-can-overflow-4/runs/detect/train2/weights/best.pt')
 
@@ -114,8 +128,147 @@ def get_client_ip():
     # Fallback to environment IP
     return request.environ.get('REMOTE_ADDR', '127.0.0.1')
 
+# ============================================================================
+# FIREBASE UPLOAD FUNCTIONS
+# ============================================================================
+
+def upload_detection_to_firebase(detection_count, confidence_scores, location_data):
+    """
+    Upload garbage detection to Firebase via dashboard API
+    
+    Args:
+        detection_count (int): Number of garbage items detected
+        confidence_scores (list): List of confidence scores (0-1)
+        location_data (dict): Location information with GPS/IP data
+    
+    Returns:
+        bool: True if upload successful, False otherwise
+    """
+    try:
+        # Prepare payload matching the dashboard API format
+        payload = {
+            "detection_count": detection_count,
+            "confidence_scores": confidence_scores,
+            "location": {
+                "source": location_data.get('source', 'IP'),
+                "latitude": location_data.get('latitude', 0),
+                "longitude": location_data.get('longitude', 0),
+                "accuracy": location_data.get('accuracy', 'Unknown'),
+                "address": location_data.get('address', 'Unknown'),
+                "timestamp": location_data.get('timestamp', datetime.now().isoformat())
+            },
+            "timestamp": datetime.now().isoformat(),
+            "model_version": "YOLOv8"
+        }
+        
+        # Add optional fields if available
+        if location_data.get('city'):
+            payload['location']['city'] = location_data['city']
+        if location_data.get('region'):
+            payload['location']['region'] = location_data['region']
+        if location_data.get('country'):
+            payload['location']['country'] = location_data['country']
+        if location_data.get('ip'):
+            payload['location']['ip'] = location_data['ip']
+        
+        # Prepare headers
+        headers = {'Content-Type': 'application/json'}
+        if API_KEY:
+            headers['Authorization'] = f'Bearer {API_KEY}'
+        
+        # Send POST request to dashboard
+        response = requests.post(
+            UPLOAD_ENDPOINT,
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+        
+        # Check response
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ Successfully uploaded to Firebase: {result.get('documentId', 'N/A')}")
+            return True
+        else:
+            print(f"❌ Upload failed: {response.status_code} - {response.text}")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Network error uploading to Firebase: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Error uploading to Firebase: {e}")
+        return False
+
+
+def batch_upload_detections_to_firebase(detection_logs_list):
+    """
+    Batch upload multiple detections to Firebase
+    
+    Args:
+        detection_logs_list (list): List of detection dictionaries
+    
+    Returns:
+        dict: Upload statistics
+    """
+    try:
+        # Prepare batch payload
+        batch_payload = []
+        
+        for log in detection_logs_list:
+            payload = {
+                "detection_count": log.get('detection_count', 0),
+                "confidence_scores": log.get('confidence_scores', []),
+                "location": {
+                    "source": log['location'].get('source', 'IP'),
+                    "latitude": log['location'].get('latitude', 0),
+                    "longitude": log['location'].get('longitude', 0),
+                    "accuracy": log['location'].get('accuracy', 'Unknown'),
+                    "address": log['location'].get('address', 'Unknown'),
+                    "timestamp": log['location'].get('timestamp', datetime.now().isoformat())
+                },
+                "timestamp": log.get('timestamp', datetime.now().isoformat()),
+                "model_version": "YOLOv8"
+            }
+            
+            # Add optional fields
+            if log['location'].get('city'):
+                payload['location']['city'] = log['location']['city']
+            if log['location'].get('region'):
+                payload['location']['region'] = log['location']['region']
+            if log['location'].get('country'):
+                payload['location']['country'] = log['location']['country']
+            if log['location'].get('ip'):
+                payload['location']['ip'] = log['location']['ip']
+            
+            batch_payload.append(payload)
+        
+        # Send batch request
+        headers = {'Content-Type': 'application/json'}
+        if API_KEY:
+            headers['Authorization'] = f'Bearer {API_KEY}'
+        
+        response = requests.post(
+            UPLOAD_ENDPOINT,
+            json=batch_payload,
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ Batch upload successful: {result.get('message', 'N/A')}")
+            return result.get('details', {})
+        else:
+            print(f"❌ Batch upload failed: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error in batch upload: {e}")
+        return None
+
 # Store detection data with location
-def log_detection_with_location(detection_count, confidence_scores):
+def log_detection_with_location(detection_count, confidence_scores, client_ip=None):
     # Try to use GPS location first, fallback to IP location
     location_data = None
     
@@ -124,7 +277,13 @@ def log_detection_with_location(detection_count, confidence_scores):
         location_data['source'] = 'GPS'
         print(f"Using GPS location: {location_data['latitude']}, {location_data['longitude']}")
     else:
-        client_ip = get_client_ip()
+        # Use provided IP or try to get it from request context if available
+        if client_ip is None:
+            try:
+                client_ip = get_client_ip()
+            except RuntimeError:
+                # If outside request context, use a default IP
+                client_ip = '127.0.0.1'
         location_data = get_location_from_ip(client_ip)
         if location_data:
             print(f"Using IP location: {client_ip}")
@@ -143,6 +302,9 @@ def log_detection_with_location(detection_count, confidence_scores):
             location_str = f"GPS ({location_data['latitude']:.4f}, {location_data['longitude']:.4f})"
         
         print(f"Detection logged: {detection_count} items at {location_str}")
+        
+        # Upload to Firebase dashboard
+        upload_detection_to_firebase(detection_count, confidence_scores, location_data)
         
         # Keep only the last 100 logs to prevent memory issues
         if len(detection_logs) > 100:
@@ -307,6 +469,52 @@ def index():
     else:
         terminate_flag = False
         return render_template('index.html')
+
+# Firebase integration routes
+@app.route('/sync_to_firebase', methods=['POST'])
+def sync_to_firebase():
+    """
+    Manually sync all detection logs to Firebase
+    """
+    if not detection_logs:
+        return jsonify({'error': 'No detections to sync'}), 400
+    
+    result = batch_upload_detections_to_firebase(detection_logs)
+    
+    if result:
+        return jsonify({
+            'success': True,
+            'message': 'Detections synced to Firebase',
+            'details': result
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Failed to sync detections'
+        }), 500
+
+
+@app.route('/firebase_status', methods=['GET'])
+def firebase_status():
+    """
+    Check Firebase connection status
+    """
+    try:
+        response = requests.get(UPLOAD_ENDPOINT, timeout=5)
+        
+        return jsonify({
+            'status': 'connected' if response.status_code in [200, 404] else 'disconnected',
+            'dashboard_url': DASHBOARD_URL,
+            'endpoint': UPLOAD_ENDPOINT,
+            'response_code': response.status_code
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'disconnected',
+            'error': str(e),
+            'dashboard_url': DASHBOARD_URL
+        })
+
 
 @app.route('/stop', methods=['POST'])
 def stop():
