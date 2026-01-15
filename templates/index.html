@@ -1,169 +1,493 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Garbage Overflow Detection System: A Custom Dataset Analysis</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garbage Overflow Detection System - ML Powered Monitoring</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* Style the file upload form */
-    form {
-      margin-top: 50px;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #10b981;
+      --primary-dark: #059669;
+      --secondary: #6366f1;
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --dark: #0f172a;
+      --dark-2: #1e293b;
+      --dark-3: #334155;
+      --light: #f8fafc;
+      --border: rgba(255, 255, 255, 0.1);
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      --glass: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.1);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background-attachment: fixed;
+      color: white;
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url("{{ url_for('static', filename='123-01.png') }}");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0.1;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Header Styles */
+    header {
       text-align: center;
+      padding: 40px 20px;
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 0%, #a5f3fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      letter-spacing: -1px;
+      text-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 300;
+    }
+
+    /* Glass Card Effect */
+    .glass-card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+
+    .glass-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Layout Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 30px;
+      margin-bottom: 30px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Control Panel */
+    .control-panel {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: flex-start;
+      gap: 20px;
     }
+
+    /* Form Styles */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
     input[type="file"] {
       display: none;
     }
-    .button {
-      display: inline-block;
-      background-color: #79dd2d;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-    .button1 {
-      display: inline-block;
-      background-color: #f65c5c;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-    .button:hover {
-      background-color: #3e8e41;
-    }
 
-    /* Style the video */
-    .video-container {
-      margin-top: -250px;
+    .file-upload-wrapper {
       display: flex;
-      justify-content: right;
-    }
-    .video {
-      width: 700px;
-      height: 500px;
-      max-width: 100%;
-      max-height: 100%;
-      border: 2px solid rgb(0, 0, 0);
+      flex-direction: column;
+      gap: 10px;
     }
 
-    /* Style the location info */
-    .location-section {
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 15px;
-      margin: 10px;
-      border-radius: 10px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      max-width: 400px;
+    #selected-file-name {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.7);
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      min-height: 20px;
+      text-align: center;
     }
-    
-    .location-section h3 {
-      margin-top: 0;
-      color: #333;
-    }
-    
-    .location-info {
-      margin: 5px 0;
-      color: #555;
-    }
-    
-    .refresh-btn {
-      background-color: #007bff;
-      color: white;
-      padding: 8px 16px;
+
+    /* Button Styles */
+    .button, .button1, .refresh-btn {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      padding: 16px 24px;
       border: none;
-      border-radius: 5px;
+      border-radius: 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
       cursor: pointer;
+      transition: all 0.3s ease;
+      overflow: hidden;
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .button {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(16, 185, 129, 0.4);
+    }
+
+    .button:active {
+      transform: translateY(0);
+    }
+
+    .button1 {
+      background: linear-gradient(135deg, var(--danger) 0%, var(--danger-dark) 100%);
+      color: white;
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+    }
+
+    .button1:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(239, 68, 68, 0.4);
+    }
+
+    .refresh-btn {
+      background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
+      color: white;
+      padding: 12px 20px;
+      font-size: 0.9rem;
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
       margin: 5px;
+      width: auto;
     }
-    
+
     .refresh-btn:hover {
-      background-color: #0056b3;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.4);
     }
-    
+
+    /* Error Message */
+    .error-message {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fecaca;
+      padding: 20px;
+      border-radius: 16px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+
+    /* Location & Logs Sections */
+    .location-section, .logs-section {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      padding: 25px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--shadow);
+    }
+
+    .location-section h3, .logs-section h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .location-section h3::before {
+      content: '';
+      font-size: 1.5rem;
+    }
+
+    .logs-section h3::before {
+      content: '';
+      font-size: 1.5rem;
+    }
+
+    .location-info {
+      margin: 15px 0;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.8;
+    }
+
+    .location-info p {
+      margin: 8px 0;
+    }
+
+    .location-info strong {
+      color: white;
+      font-weight: 600;
+    }
+
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
     .logs-section {
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 15px;
-      margin: 10px;
-      border-radius: 10px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      max-width: 500px;
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
+    }
+
+    /* Custom Scrollbar */
+    .logs-section::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .logs-section::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+
+    .logs-section::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+    }
+
+    .logs-section::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    #logs-display ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    #logs-display li {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      border-left: 3px solid var(--primary);
+      transition: all 0.3s ease;
+    }
+
+    #logs-display li:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: translateX(5px);
+    }
+
+    /* Video Container */
+    .video-section {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .video-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--shadow);
+      min-height: 400px;
+    }
+
+    .video {
+      width: 100%;
+      height: auto;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Loading Animation */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .loading {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+
+      header {
+        padding: 30px 15px;
+      }
+
+      .glass-card {
+        padding: 20px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .refresh-btn {
+        width: 100%;
+        margin: 5px 0;
+      }
     }
   </style>
 </head>
 <body>
-  <style>
-    body {
-      font-family: 'Courier New', monospace;
-      background-color: rgb(140, 82, 255);
 
-      background-image: url("{{ url_for('static', filename='123-01.png') }}");
-      background-repeat: no-repeat;
-      background-size: cover;
-background-position: 0% 0%;
-    }
-    
   </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Garbage Overflow Detection System</h1>
+      <p class="subtitle">ML-Powered Real-Time Monitoring & Analysis</p>
+    </header>
 
-  <h1 style="text-align: center;"><i>Garbage Overflow Detection System</i></h1>
+    {% if error %}
+    <div class="error-message">
+      <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
 
-  <form method="POST" enctype="multipart/form-data">
-    <label for="file-upload" class="button">Select a file</label>
-    <input id="file-upload" type="file" name="file" onchange="document.getElementById('selected-file-name').innerHTML = this.files[0].name;">
-    <div id="selected-file-name"></div>
-    <button type="submit" class="button">Upload</button>
+    <div class="main-grid">
+      <!-- Control Panel -->
+      <div class="control-panel">
+        <!-- File Upload Card -->
+        <div class="glass-card">
+          <form action="/" method="POST" enctype="multipart/form-data">
+            <div class="file-upload-wrapper">
+              <label for="file-upload" class="button">Select Video/Image File</label>
+              <input id="file-upload" type="file" name="file" accept="video/*,image/*" onchange="document.getElementById('selected-file-name').innerHTML = this.files[0].name;" required>
+              <div id="selected-file-name">No file selected</div>
+            </div>
+            <button type="submit" class="button">Upload and Detect</button>
+          </form>
+        </div>
 
-  </form>
+        <!-- Camera Options Card -->
+        <div class="glass-card">
+          <form action="/" method="POST">
+            <input type="hidden" name="camera" value="true">
+            <button type="submit" class="button">Capture from Camera</button>
+          </form>
+        </div>
 
-  <!-- Add a button to capture video from the camera -->
-  <form method="POST">
-    <input type="hidden" name="camera" value="true">
-    <button type="submit" class="button">Capture from Camera</button>
-    <input type="hidden" name="stop" value="true">
-  </form>
-  
-  <!-- Add a button to capture video from ngrok mobile CCTV -->
-  <form method="POST">
-    <input type="hidden" name="ngrok" value="true">
-    <button type="submit" class="button">Mobile Phone CCTV (Ngrok)</button>
-  </form>
-  
-  <form action="/stop" method="POST">
-    <button type="submit" class="button1" >Stop</button>
-  </form>
+        <div class="glass-card">
+          <form action="/" method="POST">
+            <input type="hidden" name="ngrok" value="true">
+            <button type="submit" class="button">Mobile Phone CCTV</button>
+          </form>
+        </div>
 
-  <!-- Location Information Section -->
-  <div class="location-section">
-    <h3>Current Location</h3>
-    <div id="location-display" class="location-info">Loading location...</div>
-    <button class="refresh-btn" onclick="loadLocation()">Refresh IP Location</button>
-    <button class="refresh-btn" onclick="getMobileLocation()">Get Mobile GPS Location</button>
-    <button class="refresh-btn" onclick="getNetworkLocation()">Network Location</button>
+        <div class="glass-card">
+          <form action="/stop" method="POST">
+            <button type="submit" class="button1">Stop Detection</button>
+          </form>
+        </div>
+
+        <!-- Location Section -->
+        <div class="location-section">
+          <h3>Current Location</h3>
+          <div id="location-display" class="location-info loading">Loading location data...</div>
+          <div class="button-group">
+            <button class="refresh-btn" onclick="loadLocation()">IP Location</button>
+            <button class="refresh-btn" onclick="getMobileLocation()">GPS Location</button>
+            <button class="refresh-btn" onclick="getNetworkLocation()">Network Location</button>
+          </div>
+        </div>
+
+        <!-- Detection Logs Section -->
+        <div class="logs-section" style="margin-top: 20px;">
+          <h3>Recent Detections</h3>
+          <button class="refresh-btn" onclick="loadLogs()" style="width: 100%; margin-bottom: 15px;">Refresh Logs</button>
+          <div id="logs-display">No detections logged yet</div>
+        </div>
+      </div>
+
+      <!-- Video Display Section -->
+      <div class="video-section">
+        {% if file_path %}
+        <div class="video-container">
+          <img src="/video_feed?file={{ file_path }}" class="video" alt="Detection Stream">
+        </div>
+        {% else %}
+        <div class="video-container" style="display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.5);">
+          <p>Select a source to start detection</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
   </div>
-
-  <!-- Detection Logs Section -->
-  <div class="logs-section">
-    <h3>Recent Detections</h3>
-    <button class="refresh-btn" onclick="loadLogs()">Load Detection Logs</button>
-    <div id="logs-display"></div>
-  </div>
-
-  {% if file_path %}
-  <div class="video-container">
-    <img src="/video_feed?file={{ file_path }}" class="video">
-  </div>
-  
-  {% endif %}
 
 
   <script>
+    // Add form submission feedback
+    document.addEventListener('DOMContentLoaded', function() {
+      const forms = document.querySelectorAll('form');
+      forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+          const submitBtn = this.querySelector('button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.6';
+            submitBtn.innerHTML = submitBtn.innerHTML + ' (Processing...)';
+          }
+        });
+      });
+    });
+
     document.getElementById("stop-button").addEventListener("click", function() {
       var video = document.getElementsByClassName("video")[0];
       video.pause();
@@ -196,7 +520,7 @@ background-position: 0% 0%;
     function getMobileLocation() {
       if (navigator.geolocation) {
         document.getElementById('location-display').innerHTML = 
-          '<p style="color: blue;">🔍 Getting GPS location...</p>';
+          '<p style="color: #a5f3fc;">Getting GPS location...</p>';
         
         navigator.geolocation.getCurrentPosition(
           function(position) {
@@ -220,7 +544,7 @@ background-position: 0% 0%;
             .then(response => response.json())
             .then(data => {
               document.getElementById('location-display').innerHTML = 
-                `<p><strong>📱 Mobile GPS Location:</strong></p>
+                `<p><strong>Mobile GPS Location:</strong></p>
                  <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
                  <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
                  <p><strong>Address:</strong> ${data.address || 'Resolving...'}</p>
@@ -228,7 +552,7 @@ background-position: 0% 0%;
             })
             .catch(error => {
               document.getElementById('location-display').innerHTML = 
-                `<p><strong>📱 Mobile GPS Location:</strong></p>
+                `<p><strong>Mobile GPS Location:</strong></p>
                  <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
                  <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
                  <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>`;
@@ -251,7 +575,7 @@ background-position: 0% 0%;
                 break;
             }
             document.getElementById('location-display').innerHTML = 
-              `<p style="color: red;">❌ GPS Error: ${errorMsg}</p>
+              `<p style="color: #ef4444;">GPS Error: ${errorMsg}</p>
                <p>Please enable location services and try again.</p>`;
           },
           {
@@ -262,7 +586,7 @@ background-position: 0% 0%;
         );
       } else {
         document.getElementById('location-display').innerHTML = 
-          '<p style="color: red;">❌ Geolocation is not supported by this browser</p>';
+          '<p style="color: #ef4444;">Geolocation is not supported by this browser</p>';
       }
     }
 
@@ -270,7 +594,7 @@ background-position: 0% 0%;
     function getNetworkLocation() {
       if (navigator.geolocation) {
         document.getElementById('location-display').innerHTML = 
-          '<p style="color: blue;">🔍 Getting network location...</p>';
+          '<p style="color: #a5f3fc;">Getting network location...</p>';
         
         navigator.geolocation.getCurrentPosition(
           function(position) {
@@ -294,7 +618,7 @@ background-position: 0% 0%;
             .then(response => response.json())
             .then(data => {
               document.getElementById('location-display').innerHTML = 
-                `<p><strong>🌐 Network Location:</strong></p>
+                `<p><strong>Network Location:</strong></p>
                  <p><strong>Coordinates:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
                  <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
                  <p><strong>Address:</strong> ${data.address || 'Resolving...'}</p>
@@ -317,43 +641,54 @@ background-position: 0% 0%;
     }
 
     function loadLogs() {
+      // Show loading state
+      const logsDisplay = document.getElementById('logs-display');
+      logsDisplay.innerHTML = '<p style="text-align: center; color: rgba(255, 255, 255, 0.7);">Loading logs...</p>';
+      
       fetch('/location_logs')
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
         .then(data => {
           let html = '<ul style="list-style-type: none; padding: 0;">';
           if (data.length === 0) {
-            html += '<li>No detections logged yet</li>';
+            html += '<li style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px;">No detections logged yet</li>';
           } else {
-            data.slice(-10).forEach(log => {
+            data.slice(-10).reverse().forEach(log => {
               const timestamp = new Date(log.timestamp).toLocaleString();
               const avgConfidence = log.confidence_scores.length > 0 ? 
                 (log.confidence_scores.reduce((a, b) => a + b, 0) / log.confidence_scores.length * 100).toFixed(1) : 'N/A';
               
               const locationSource = log.location.source || 'IP';
-              const locationIcon = locationSource === 'GPS' ? '📱' : '🌐';
               const locationText = locationSource === 'GPS' ? 
                 `GPS (${log.location.latitude?.toFixed(4)}, ${log.location.longitude?.toFixed(4)})` :
                 `${log.location.city}, ${log.location.country}`;
               
-              html += `<li style="margin-bottom: 10px; padding: 8px; background-color: #f8f9fa; border-radius: 5px;">
-                <strong>${timestamp}</strong><br>
-                ${locationIcon} ${locationText}<br>
-                🗑️ ${log.detection_count} items detected (${avgConfidence}% confidence)
+              html += `<li>
+                <strong style="color: #a5f3fc;">${timestamp}</strong><br>
+                ${locationSource}: ${locationText}<br>
+                <strong>${log.detection_count}</strong> items detected <span style="color: #10b981;">(${avgConfidence}% confidence)</span>
               </li>`;
             });
           }
           html += '</ul>';
-          document.getElementById('logs-display').innerHTML = html;
+          logsDisplay.innerHTML = html;
         })
         .catch(error => {
-          document.getElementById('logs-display').innerHTML = 
-            '<p style="color: red;">Error loading logs</p>';
-          console.error('Error:', error);
+          logsDisplay.innerHTML = 
+            '<p style="color: #ef4444; text-align: center;">Error loading logs. Please try again.</p>';
+          console.error('Error loading logs:', error);
         });
     }
 
     // Load location on page load
     window.onload = function() {
+      // Load logs immediately on page load
+      loadLogs();
+      
       // Try GPS location first, fallback to IP location
       if (navigator.geolocation) {
         getMobileLocation();
@@ -367,6 +702,11 @@ background-position: 0% 0%;
           loadLogs();
         }
       }, 30000);
+      
+      // Also refresh logs every 10 seconds regardless
+      setInterval(function() {
+        loadLogs();
+      }, 10000);
     };
   </script>
   

@@ -312,38 +312,59 @@ def log_detection_with_location(detection_count, confidence_scores, client_ip=No
 
 # Define a generator function to stream video frames to the web page
 def generate(file_path):
-    if file_path == "camera":
-        cap = cv2.VideoCapture(0)
-    elif file_path == "ngrok":
-        # Use the ngrok URL for mobile phone CCTV
-        # Try different possible video stream endpoints
-        possible_urls = [
-            "https://76ee592fbf21.ngrok-free.app/video",
-        ]
+    cap = None
+    try:
+        if file_path == "camera":
+            print("Opening camera...")
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                print("Error: Could not open camera")
+                return
+        elif file_path == "ngrok":
+            # Use the ngrok URL for mobile phone CCTV
+            # Try different possible video stream endpoints
+            possible_urls = [
+                "https://76ee592fbf21.ngrok-free.app/video",
+            ]
+            
+            cap = None
+            for url in possible_urls:
+                print(f"Trying to connect to: {url}")
+                cap = cv2.VideoCapture(url)
+                if cap.isOpened():
+                    print(f"Successfully connected to: {url}")
+                    break
+                else:
+                    print(f"Failed to connect to: {url}")
+                    if cap:
+                        cap.release()
+            
+            if not cap or not cap.isOpened():
+                print("Could not connect to any ngrok URL")
+                return
+        else:
+            print(f"Opening video file: {file_path}")
+            if not os.path.exists(file_path):
+                print(f"Error: File not found: {file_path}")
+                return
+            cap = cv2.VideoCapture(file_path)
+            if not cap.isOpened():
+                print(f"Error: Could not open video file: {file_path}")
+                return
         
-        cap = None
-        for url in possible_urls:
-            print(f"Trying to connect to: {url}")
-            cap = cv2.VideoCapture(url)
-            if cap.isOpened():
-                print(f"Successfully connected to: {url}")
+        print("Video capture opened successfully")
+        frame_count = 0
+        
+        while cap.isOpened():
+            # Read a frame from the video file
+            success, frame = cap.read()
+            
+            if not success:
+                print(f"Failed to read frame {frame_count}")
                 break
-            else:
-                print(f"Failed to connect to: {url}")
-                cap.release()
-        
-        if not cap or not cap.isOpened():
-            print("Could not connect to any ngrok URL")
-            return
-    else:
-        cap = cv2.VideoCapture(file_path)
-    while cap.isOpened():
-        # Read a frame from the video file
-        success, frame = cap.read()
-        
-        print(f"Frame read success: {success}")  # Debug output
 
-        if success:
+            frame_count += 1
+            
             # Run YOLOv8 inference on the frame
             results = model(frame)
 
@@ -354,12 +375,7 @@ def generate(file_path):
                 confidence_scores = detections.conf.tolist() if detections.conf is not None else []
                 
                 # Log detection with geolocation (every 30 frames to avoid spam)
-                if hasattr(generate, 'frame_count'):
-                    generate.frame_count += 1
-                else:
-                    generate.frame_count = 1
-                
-                if generate.frame_count % 30 == 0:  # Log every 30 frames
+                if frame_count % 30 == 0:  # Log every 30 frames
                     log_detection_with_location(detection_count, confidence_scores)
 
             # Visualize the results on the frame
@@ -367,18 +383,27 @@ def generate(file_path):
 
             # Encode the frame as JPEG
             ret, jpeg = cv2.imencode('.jpg', annotated_frame)
+            
+            if not ret:
+                print("Failed to encode frame")
+                continue
 
             # Yield the JPEG data to Flask
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            
             if cv2.waitKey(1) == 27 or terminate_flag:  # Exit when ESC key is pressed or terminate flag is set
+                print("Terminating video stream...")
                 break
-        else:
-            # Break the loop if the video file capture fails
-            print("Failed to read frame, breaking loop")
-            break
-    cap.release()
-    os._exit(0)  # Terminate the script when the video stream ends or terminate flag is set
+                
+    except Exception as e:
+        print(f"Error in video generation: {e}")
+    finally:
+        if cap:
+            cap.release()
+            print("Video capture released")
+        # Don't exit the entire process, just end the stream
+        # os._exit(0)  # Commented out - this kills the whole Flask app!
 
 # Define a route to serve the video stream
 @app.route('/video_feed')
@@ -457,14 +482,34 @@ def index():
     if request.method == 'POST':
         if request.form.get("camera") == "true":
             file_path = "camera"
+            print("Starting camera detection...")
         elif request.form.get("ngrok") == "true":
             file_path = "ngrok"
+            print("Starting ngrok mobile CCTV detection...")
         elif 'file' in request.files:
             file = request.files['file']
+            # Check if file is selected
+            if file.filename == '':
+                print("No file selected")
+                return render_template('index.html', error="No file selected")
+            
+            # Check if file has valid extension
+            allowed_extensions = {'mp4', 'avi', 'mov', 'mkv', 'jpg', 'jpeg', 'png', 'webm'}
+            file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+            
+            if file_ext not in allowed_extensions:
+                print(f"Invalid file type: {file_ext}")
+                return render_template('index.html', error=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")
+            
+            # Save the file
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(file_path)
+            print(f"File uploaded successfully: {file_path}")
         else:
             file_path = None
+            print("No valid input provided")
+            return render_template('index.html', error="Please select a file or choose a camera option")
+        
         return render_template('index.html', file_path=file_path)
     else:
         terminate_flag = False
